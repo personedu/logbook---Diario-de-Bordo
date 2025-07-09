@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diário de Bordo Interativo - Online</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #FDFBF8; color: #4A4A4A; }
+        .chart-container { position: relative; width: 100%; max-width: 320px; margin-left: auto; margin-right: auto; height: 320px; max-height: 320px; }
+        .timeline-item.active { border-left-color: #3B82F6; background-color: #EFF6FF; transform: translateX(4px); }
+        .tab-btn.active { border-bottom-color: #3B82F6; color: #2D3748; font-weight: 600; }
+        .timeline-item-planned { border-left-style: dashed; opacity: 0.75; }
+        .modal { display: none; }
+        .modal.active { display: flex; }
+        [contenteditable]:focus { outline: 2px solid #3B82F6; background-color: #EFF6FF; border-radius: 4px; }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div id="app-loading" class="fixed inset-0 bg-white flex items-center justify-center z-50">
+        <p class="text-xl font-semibold text-gray-600">Carregando aplicação...</p>
+    </div>
+
+    <!-- TELA DE LOGIN -->
+    <div id="login-screen" class="min-h-screen flex items-center justify-center bg-gray-50 hidden">
+        <div class="max-w-md w-full bg-white p-8 rounded-2xl shadow-lg border border-gray-200">
+            <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Login do Professor</h2>
+            <form id="login-form" class="space-y-6">
+                <div>
+                    <label for="email" class="text-sm font-medium text-gray-700">Email</label>
+                    <input id="email" name="email" type="email" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div>
+                    <label for="password" class="text-sm font-medium text-gray-700">Senha</label>
+                    <input id="password" name="password" type="password" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <p id="login-error" class="text-sm text-red-600 hidden"></p>
+                <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Entrar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- PAINEL PRINCIPAL -->
+    <div id="main-dashboard" class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-7xl hidden">
+        <header class="mb-8 flex justify-between items-center flex-wrap gap-4">
+            <div>
+                <h1 id="student-name" class="text-3xl font-bold text-gray-800">Diário de Bordo</h1>
+                <p class="text-lg text-gray-500">Selecione um aluno para começar</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <select id="student-selector" class="bg-white border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    <option value="">Selecione um aluno</option>
+                </select>
+                <button id="add-student-btn" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium">+</button>
+                <button id="logout-btn" class="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 text-sm font-medium">Sair</button>
+            </div>
+        </header>
+
+        <div id="student-dashboard-content" class="hidden">
+            <section id="dashboard-overview" class="mb-8">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="md:col-span-1 bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                        <h2 class="text-xl font-semibold text-gray-700 mb-4 text-center">Progresso do Pacote</h2>
+                        <div class="chart-container">
+                            <canvas id="progressChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 flex flex-col justify-center">
+                            <h3 class="text-lg font-semibold text-gray-600 mb-2">Pacote Contratado</h3>
+                            <p id="package-size" class="text-3xl font-bold text-blue-600"></p>
+                        </div>
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 flex flex-col justify-center">
+                            <h3 class="text-lg font-semibold text-gray-600 mb-2">Período Previsto</h3>
+                            <p id="package-period" class="text-xl font-semibold text-gray-800"></p>
+                        </div>
+                         <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 sm:col-span-2 flex flex-col justify-center">
+                            <h3 class="text-lg font-semibold text-gray-600 mb-2">Próxima Aula</h3>
+                            <p id="next-lesson-info" class="text-xl font-semibold text-gray-800"></p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <aside class="lg:col-span-1">
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 h-full">
+                        <div class="flex justify-between items-center mb-4 px-2">
+                            <h2 class="text-xl font-semibold text-gray-700">Linha do Tempo</h2>
+                            <button id="add-lesson-btn" class="px-3 py-1 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 text-sm font-medium">+</button>
+                        </div>
+                        <div id="lesson-timeline" class="space-y-2 max-h-[600px] overflow-y-auto pr-2"></div>
+                    </div>
+                </aside>
+
+                <section id="lesson-details" class="lg:col-span-2 bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-gray-200 min-h-[500px]">
+                    <div id="lesson-placeholder" class="flex flex-col items-center justify-center h-full text-center">
+                        <h3 class="text-xl font-semibold text-gray-500">Selecione uma aula na linha do tempo</h3>
+                        <p class="text-gray-400 mt-1">Os detalhes da aula selecionada aparecerão aqui.</p>
+                    </div>
+                    <div id="lesson-content" class="hidden">
+                        <div class="mb-6">
+                            <h2 id="lesson-title" class="text-2xl sm:text-3xl font-bold text-gray-800"></h2>
+                            <p id="lesson-date" class="text-lg text-gray-500 mt-1"></p>
+                        </div>
+                        <div id="tab-content" class="py-6 space-y-8"></div>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+    
+    <!-- MODAIS -->
+    <div id="add-student-modal" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center p-4">
+        <div class="bg-white rounded-lg p-8 max-w-lg w-full">
+            <h2 class="text-xl font-bold mb-4">Adicionar Novo Aluno</h2>
+            <form id="add-student-form" class="space-y-4">
+                <input type="text" id="new-student-name" placeholder="Nome do Aluno" required class="w-full border border-gray-300 rounded-md p-2">
+                <input type="number" id="new-student-package" placeholder="Total de Aulas no Pacote" required class="w-full border border-gray-300 rounded-md p-2">
+                <input type="text" id="new-student-start" placeholder="Data de Início (ex: 15/03/2025)" required class="w-full border border-gray-300 rounded-md p-2">
+                <input type="text" id="new-student-end" placeholder="Data de Término Prevista" required class="w-full border border-gray-300 rounded-md p-2">
+                <div class="flex justify-end gap-4">
+                    <button type="button" id="cancel-add-student" class="px-4 py-2 bg-gray-200 rounded-md">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="add-lesson-modal" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center p-4">
+        <div class="bg-white rounded-lg p-8 max-w-lg w-full">
+            <h2 class="text-xl font-bold mb-4">Adicionar Nova Aula</h2>
+            <form id="add-lesson-form" class="space-y-4">
+                <input type="number" id="new-lesson-number" placeholder="Número da Aula" required class="w-full border border-gray-300 rounded-md p-2">
+                <input type="text" id="new-lesson-date" placeholder="Data da Aula (ex: 08/07/2025)" required class="w-full border border-gray-300 rounded-md p-2">
+                <input type="text" id="new-lesson-topic" placeholder="Tópico Principal" required class="w-full border border-gray-300 rounded-md p-2">
+                <select id="new-lesson-status" class="w-full border border-gray-300 rounded-md p-2">
+                    <option value="completed">Realizada</option>
+                    <option value="planned">Planejada</option>
+                </select>
+                <div class="flex justify-end gap-4">
+                    <button type="button" id="cancel-add-lesson" class="px-4 py-2 bg-gray-200 rounded-md">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script type="module">
+        // Importações do Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, doc, addDoc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-analytics.js";
+
+        // Configuração do Firebase
+        const firebaseConfig = {
+          apiKey: "AIzaSyDbh7UwSDK6wKgZODzL7vQQF3uv5wlt9DQ",
+          authDomain: "logbook-97d17.firebaseapp.com",
+          projectId: "logbook-97d17",
+          storageBucket: "logbook-97d17.appspot.com",
+          messagingSenderId: "202964485703",
+          appId: "1:202964485703:web:0ee1586ab5161afd671362",
+          measurementId: "G-8GFQ7MBYK7"
+        };
+
+        // Inicialização do Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const analytics = getAnalytics(app);
+
+        // Variáveis de estado globais
+        let currentStudentId = null;
+        let currentLessons = [];
+        let progressChartInstance = null;
+        let studentsUnsubscribe = null;
+        let lessonsUnsubscribe = null;
+
+        // Elementos da UI
+        const appLoadingEl = document.getElementById('app-loading');
+        const loginScreenEl = document.getElementById('login-screen');
+        const mainDashboardEl = document.getElementById('main-dashboard');
+        const studentDashboardContentEl = document.getElementById('student-dashboard-content');
+        const studentSelectorEl = document.getElementById('student-selector');
+
+        // Lógica de Autenticação
+        onAuthStateChanged(auth, user => {
+            appLoadingEl.classList.add('hidden');
+            if (user) {
+                loginScreenEl.classList.add('hidden');
+                mainDashboardEl.classList.remove('hidden');
+                setupDashboard(user.uid);
+            } else {
+                mainDashboardEl.classList.add('hidden');
+                loginScreenEl.classList.remove('hidden');
+                cleanupSubscriptions();
+            }
+        });
+
+        document.getElementById('login-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const email = e.target.email.value;
+            const password = e.target.password.value;
+            const errorEl = document.getElementById('login-error');
+            errorEl.classList.add('hidden');
+
+            signInWithEmailAndPassword(auth, email, password)
+                .catch(error => {
+                    console.error("Erro de login:", error);
+                    errorEl.textContent = "Email ou senha inválidos.";
+                    errorEl.classList.remove('hidden');
+                });
+        });
+
+        document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
+
+        function cleanupSubscriptions() {
+            if (studentsUnsubscribe) studentsUnsubscribe();
+            if (lessonsUnsubscribe) lessonsUnsubscribe();
+        }
+
+        // Lógica do Dashboard
+        function setupDashboard(userId) {
+            if (studentsUnsubscribe) studentsUnsubscribe();
+            const studentsQuery = query(collection(db, "students"), where("ownerId", "==", userId));
+            
+            studentsUnsubscribe = onSnapshot(studentsQuery, (snapshot) => {
+                const students = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                populateStudentSelector(students);
+                if (currentStudentId && !students.some(s => s.id === currentStudentId)) {
+                    resetDashboard();
+                }
+            });
+        }
+
+        function populateStudentSelector(students) {
+            const oldValue = studentSelectorEl.value;
+            studentSelectorEl.innerHTML = '<option value="">Selecione um aluno</option>';
+            students.forEach(student => {
+                const option = document.createElement('option');
+                option.value = student.id;
+                option.textContent = student.name;
+                studentSelectorEl.appendChild(option);
+            });
+            if (students.some(s => s.id === oldValue)) {
+                studentSelectorEl.value = oldValue;
+            }
+        }
+        
+        studentSelectorEl.addEventListener('change', (e) => {
+            currentStudentId = e.target.value;
+            if (currentStudentId) {
+                studentDashboardContentEl.classList.remove('hidden');
+                loadStudentData(currentStudentId);
+            } else {
+                resetDashboard();
+            }
+        });
+
+        function resetDashboard() {
+            studentDashboardContentEl.classList.add('hidden');
+            document.getElementById('student-name').textContent = "Diário de Bordo";
+            document.querySelector('#student-name + p').textContent = "Selecione um aluno para começar";
+        }
+
+        function loadStudentData(studentId) {
+            if (lessonsUnsubscribe) lessonsUnsubscribe();
+            const studentRef = doc(db, "students", studentId);
+            
+            onSnapshot(studentRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const studentData = docSnap.data();
+                    document.getElementById('student-name').textContent = `Diário de Bordo de ${studentData.name}`;
+                    document.querySelector('#student-name + p').textContent = "Acompanhe o progresso e as aulas";
+                    document.getElementById('package-size').textContent = `${studentData.packageTotal} Aulas`;
+                    document.getElementById('package-period').textContent = `${studentData.startDate} - ${studentData.endDate}`;
+                    
+                    const lessonsQuery = collection(db, "students", studentId, "lessons");
+                    lessonsUnsubscribe = onSnapshot(lessonsQuery, (lessonsSnapshot) => {
+                        currentLessons = lessonsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        currentLessons.sort((a, b) => b.lessonNumber - a.lessonNumber);
+                        updateUIWithStudentData(studentData, currentLessons);
+                    });
+                }
+            });
+        }
+
+        function updateUIWithStudentData(studentData, lessons) {
+            const completedCount = lessons.filter(l => l.status === 'completed').length;
+            const remainingCount = studentData.packageTotal - completedCount;
+            
+            createProgressChart(completedCount, remainingCount);
+            populateTimeline(lessons);
+            
+            const nextLesson = lessons.find(l => l.status === 'planned');
+            document.getElementById('next-lesson-info').textContent = nextLesson ? `${nextLesson.date} - ${nextLesson.topic}` : 'Pacote concluído!';
+
+            const activeLessonEl = document.querySelector('.timeline-item.active');
+            if (activeLessonEl) {
+                const activeLessonId = activeLessonEl.dataset.lessonId;
+                const lessonExists = lessons.some(l => l.id === activeLessonId);
+                if (lessonExists) {
+                    displayLesson(activeLessonId);
+                } else {
+                    document.getElementById('lesson-content').classList.add('hidden');
+                    document.getElementById('lesson-placeholder').classList.remove('hidden');
+                }
+            } else {
+                 document.getElementById('lesson-content').classList.add('hidden');
+                 document.getElementById('lesson-placeholder').classList.remove('hidden');
+            }
+        }
+
+        function createProgressChart(completed, remaining) {
+            if (progressChartInstance) {
+                progressChartInstance.destroy();
+            }
+            const ctx = document.getElementById('progressChart').getContext('2d');
+            progressChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Aulas Concluídas', 'Aulas Restantes'],
+                    datasets: [{ data: [completed, remaining], backgroundColor: ['#3B82F6', '#BFDBFE'], borderColor: '#FDFBF8', borderWidth: 4 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false } } }
+            });
+        }
+
+        function populateTimeline(lessons) {
+            const timelineEl = document.getElementById('lesson-timeline');
+            timelineEl.innerHTML = '';
+            lessons.forEach(lesson => {
+                const isPlanned = lesson.status === 'planned';
+                const itemEl = document.createElement('div');
+                itemEl.className = `timeline-item p-3 rounded-lg border-l-4 cursor-pointer transition-all duration-200 ease-in-out ${isPlanned ? 'timeline-item-planned border-gray-400 bg-gray-50' : 'border-blue-500 bg-white hover:bg-blue-50'}`;
+                itemEl.dataset.lessonId = lesson.id;
+                itemEl.innerHTML = `<p class="font-semibold text-gray-800">${isPlanned ? 'Planejada' : ''} Aula ${lesson.lessonNumber}</p><p class="text-sm text-gray-600">${lesson.date}</p><p class="text-sm text-gray-500 mt-1 truncate">${lesson.topic}</p>`;
+                timelineEl.appendChild(itemEl);
+            });
+        }
+        
+        document.getElementById('lesson-timeline').addEventListener('click', (e) => {
+            const lessonItem = e.target.closest('.timeline-item');
+            if (lessonItem) {
+                const lessonId = lessonItem.dataset.lessonId;
+                document.querySelectorAll('.timeline-item').forEach(item => item.classList.remove('active'));
+                lessonItem.classList.add('active');
+                displayLesson(lessonId);
+            }
+        });
+
+        function displayLesson(lessonId) {
+            document.getElementById('lesson-placeholder').classList.add('hidden');
+            document.getElementById('lesson-content').classList.remove('hidden');
+
+            const lesson = currentLessons.find(l => l.id === lessonId);
+            if (!lesson) return;
+
+            document.getElementById('lesson-title').textContent = `Aula ${lesson.lessonNumber}`;
+            document.getElementById('lesson-date').textContent = `${lesson.date} - ${lesson.topic}`;
+            
+            const tabContentEl = document.getElementById('tab-content');
+            tabContentEl.innerHTML = `
+                ${createEditableSection('objectives', 'Objetivos', lesson.objectives ? lesson.objectives.join('\n') : '', lessonId, 'textarea')}
+                ${createEditableSection('notes', 'Anotações', lesson.notes || '', lessonId, 'textarea')}
+                ${createEditableSection('homework', 'Tarefas', lesson.homework || '', lessonId, 'textarea')}
+                ${createEditableSection('feedback', lesson.status === 'planned' ? 'Planejamento' : 'Feedback', lesson.feedback || '', lessonId, 'textarea')}
+            `;
+            
+            tabContentEl.querySelectorAll('.save-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const section = e.target.dataset.section;
+                    const contentEl = document.getElementById(`content-${section}`);
+                    let valueToSave = contentEl.innerHTML.replace(/<div>/g, '\n').replace(/<\/div>/g, '').replace(/<br>/g, '\n');
+                    
+                    const updateData = {};
+                    if(section === 'objectives') {
+                        updateData[section] = valueToSave.split('\n').filter(line => line.trim() !== '');
+                    } else {
+                        updateData[section] = valueToSave;
+                    }
+                    
+                    const lessonRef = doc(db, "students", currentStudentId, "lessons", lessonId);
+                    updateDoc(lessonRef, updateData)
+                        .then(() => {
+                            btn.textContent = 'Salvo!';
+                            setTimeout(() => { btn.classList.add('hidden'); btn.textContent = 'Salvar'; }, 2000);
+                        })
+                        .catch(err => console.error("Erro ao salvar:", err));
+                });
+            });
+
+            tabContentEl.querySelectorAll('[contenteditable]').forEach(el => {
+                el.addEventListener('input', (e) => {
+                    const section = e.target.id.split('-')[1];
+                    document.querySelector(`.save-btn[data-section="${section}"]`).classList.remove('hidden');
+                });
+            });
+        }
+
+        function createEditableSection(id, title, content, lessonId, type = 'div') {
+            const formattedContent = content.replace(/\n/g, '<br>');
+            return `
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <h4 class="font-semibold text-lg text-gray-700">${title}</h4>
+                        <button data-section="${id}" class="save-btn hidden px-3 py-1 bg-green-500 text-white text-xs font-bold rounded-full hover:bg-green-600">Salvar</button>
+                    </div>
+                    <div id="content-${id}" contenteditable="true" class="prose max-w-none text-gray-600 bg-gray-50 p-3 rounded-md border border-gray-200 min-h-[100px]">${formattedContent}</div>
+                </div>
+            `;
+        }
+
+        // Lógica dos Modais
+        const addStudentModal = document.getElementById('add-student-modal');
+        document.getElementById('add-student-btn').addEventListener('click', () => addStudentModal.classList.add('active'));
+        document.getElementById('cancel-add-student').addEventListener('click', () => addStudentModal.classList.remove('active'));
+        document.getElementById('add-student-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const newStudent = {
+                name: e.target['new-student-name'].value,
+                packageTotal: parseInt(e.target['new-student-package'].value),
+                startDate: e.target['new-student-start'].value,
+                endDate: e.target['new-student-end'].value,
+                ownerId: auth.currentUser.uid
+            };
+            addDoc(collection(db, "students"), newStudent)
+                .then(() => {
+                    e.target.reset();
+                    addStudentModal.classList.remove('active');
+                })
+                .catch(err => console.error("Erro ao adicionar aluno:", err));
+        });
+
+        const addLessonModal = document.getElementById('add-lesson-modal');
+        document.getElementById('add-lesson-btn').addEventListener('click', () => {
+            if (currentStudentId) addLessonModal.classList.add('active');
+            else alert("Por favor, selecione um aluno primeiro.");
+        });
+        document.getElementById('cancel-add-lesson').addEventListener('click', () => addLessonModal.classList.remove('active'));
+        document.getElementById('add-lesson-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const newLesson = {
+                lessonNumber: parseInt(e.target['new-lesson-number'].value),
+                date: e.target['new-lesson-date'].value,
+                topic: e.target['new-lesson-topic'].value,
+                status: e.target['new-lesson-status'].value,
+                objectives: [], notes: '', homework: '', feedback: ''
+            };
+            const lessonsColRef = collection(db, "students", currentStudentId, "lessons");
+            addDoc(lessonsColRef, newLesson)
+                .then(() => {
+                    e.target.reset();
+                    addLessonModal.classList.remove('active');
+                })
+                .catch(err => console.error("Erro ao adicionar aula:", err));
+        });
+
+    </script>
+</body>
+</html>
